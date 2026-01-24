@@ -15,11 +15,13 @@ from tqdm import tqdm
 from datetime import datetime
 # Deep Learning imports
 import torch
+import time
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 import torch.nn.functional as F
-device = 'cpu' # 'mps' if torch.backends.mps.is_available() else 'cpu'
+device = 'mps' # 'mps' if torch.backends.mps.is_available() else 'cpu'
+epochs = 100  # Số epoch mặc định cho training
 class FlowExtractor:
     """Trích xuất optical flow từ video"""
     
@@ -87,7 +89,7 @@ class FlowExtractor:
         
         return features
     
-    def process_video(self, video_path, show_video=True, label=None):
+    def process_video(self, video_path, show_video=False, label=None):
         """Xử lý một video và trích xuất sequences"""
         cap = cv2.VideoCapture(video_path)
         
@@ -947,7 +949,7 @@ class CNNLSTMClassifier:
             device: 'cuda' hoặc 'cpu'
         """
         if device is None:
-            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            self.device = 'cpu'# device('mps' if torch.cuda.is_available() else 'cpu')
         else:
             self.device = torch.device(device)
         
@@ -964,7 +966,7 @@ class CNNLSTMClassifier:
         self.is_trained = False
         
     def train(self, sequences, test_size=0.2, batch_size=32, 
-              epochs=50, lr=0.001, weight_decay=1e-4):
+              epochs=100, lr=0.001, weight_decay=1e-4):
         """
         Train CNN-LSTM model
         
@@ -1254,7 +1256,7 @@ class CNN3DClassifier:
         self.is_trained = False
     
     def train(self, sequences, test_size=0.2, batch_size=32,
-              epochs=50, lr=0.001, weight_decay=1e-4):
+              epochs=100, lr=0.001, weight_decay=1e-4):
         """Train 3D CNN model"""
         print("\n===== CHUẨN BỊ DỮ LIỆU 3D CNN =====")
         
@@ -1676,214 +1678,142 @@ class VideoClassifier:
             print(f"Person {person_id}: {label_text} "
                   f"(confidence: {pred_info['probs'][pred_info['label']]:.2f})")
 
-# ===== MAIN: PIPELINE HOÀN CHỈNH =====
-
-# if __name__ == "__main__":
-    
-#     # ===== BƯỚC 1: XÂY DỰNG DATASET =====
-#     # print("=" * 60)
-#     # print("BƯỚC 1: XÂY DỰNG DATASET TỪ VIDEOS")
-#     # print("=" * 60)
-    
-#     # Cấu trúc thư mục:
-#     # data/
-#     #   Violent/
-#     #     video1.mp4
-#     #     video2.mp4
-#     #   Non-Violent/
-#     #     video3.mp4
-#     #     video4.mp4
-    
-#     # builder = DatasetBuilder(data_dir='data_test', flow_sequence_length=15)
-#     # sequences = builder.build_dataset(output_path='dataset.pkl')
-
-#     # ===== BƯỚC 2A: TRAIN MODEL - RANDOM FOREST =====
-#     # print("\n" + "=" * 60)
-#     # print("BƯỚC 2A: TRAIN MODEL PHÂN LOẠI")
-#     # print("=" * 60)
-
-#     sequences = load_data()
-#     classifier = ActionClassifier()
-#     results = classifier.train(sequences, test_size=0.2)
-#     classifier.save_model('rf_classifier.pkl')
-
-#     # ===== BƯỚC 2B: TRAIN CNN-LSTM =====
-#     print("\n" + "=" * 60)
-#     print("BƯỚC 2B: TRAIN CNN-LSTM CLASSIFIER")
-#     print("=" * 60)
-    
-#     cnn_lstm_classifier = CNNLSTMClassifier(
-#         input_size=25,      # 9 scalar + 8 mag_hist + 8 ang_hist
-#         hidden_size=128,
-#         num_layers=2,
-#         dropout=0.5
-#     )
-    
-#     cnn_lstm_results = cnn_lstm_classifier.train(
-#         sequences,
-#         test_size=0.2,
-#         batch_size=32,
-#         epochs=50,
-#         lr=0.001
-#     )
-#     cnn_lstm_classifier.save_model('cnn_lstm_classifier.pth')
-    
-#     # ===== BƯỚC 3: SỬ DỤNG MODEL ĐÃ TRAIN =====
-#     print("\n" + "=" * 60)
-#     print("BƯỚC 3: PHÂN LOẠI VIDEO MỚI")
-#     print("=" * 60)
-#     video_path='data_valid/3.mp4'
-#     # Phân loại video mới
-#     # video_classifier = VideoClassifier2(model_path='action_classifier.pkl')
-#     # video_classifier.classify_video(
-#     #     video_path='data_valid/3.mp4',
-#     #     output_video='output_classified.mp4'
-#     # )
-    
-#     # Test với Random Forest
-#     print("\n--- Test với Random Forest ---")
-#     rf_video_classifier = VideoClassifier(
-#         model_path='rf_classifier.pkl',
-#         model_type='rf'
-#     )
-#     rf_video_classifier.classify_video(
-#         video_path=video_path,
-#         output_video='output_rf.mp4'
-#     )
-    
-#     # Test với CNN-LSTM
-#     print("\n--- Test với CNN-LSTM ---")
-#     cnn_lstm_video_classifier = VideoClassifier(
-#         model_path='cnn_lstm_classifier.pth',
-#         model_type='cnn_lstm'
-#     )
-#     cnn_lstm_video_classifier.classify_video(
-#         video_path=video_path,
-#         output_video='output_cnn_lstm.mp4'
-#     )
-    
-#     print("\n" + "=" * 60)
-#     print("HOÀN THÀNH!")
-#     print("=" * 60)
-
+step = 2
+model_rf = True
+model_cnn_lstm = True
+model_cnn3d = True
+model_ensemble = True
+all_model = True
+test = True
 if __name__ == "__main__":
     
     # ===== BƯỚC 1: XÂY DỰNG DATASET =====
     print("=" * 60)
     print("BƯỚC 1: XÂY DỰNG DATASET TỪ VIDEOS")
     print("=" * 60)
-    
-    # builder = DatasetBuilder(data_dir='data', flow_sequence_length=15)
-    # sequences = builder.build_dataset(output_path='dataset.pkl')
-    sequences = load_data()
-    # Split data cho ensemble evaluation
-    labels = [seq['label'] for seq in sequences]
-    train_sequences, test_sequences = train_test_split(
-        sequences, test_size=0.2, random_state=42, stratify=labels
-    )
-    
-    # ===== BƯỚC 2A: TRAIN RANDOM FOREST =====
-    print("\n" + "=" * 60)
-    print("BƯỚC 2A: TRAIN RANDOM FOREST")
-    print("=" * 60)
-    
-    rf_classifier = ActionClassifier()
-    rf_results = rf_classifier.train(train_sequences, test_size=0.25)  # 0.25 của train = 0.2 tổng
-    rf_classifier.save_model('rf_classifier.pkl')
-    
-    # ===== BƯỚC 2B: TRAIN CNN-LSTM =====
-    print("\n" + "=" * 60)
-    print("BƯỚC 2B: TRAIN CNN-LSTM")
-    print("=" * 60)
-    
-    cnn_lstm_classifier = CNNLSTMClassifier(
-        input_size=25,
-        hidden_size=128,
-        num_layers=2,
-        dropout=0.5
-    )
-    cnn_lstm_results = cnn_lstm_classifier.train(
-        train_sequences,
-        test_size=0.25,
-        batch_size=32,
-        epochs=50,
-        lr=0.001
-    )
-    cnn_lstm_classifier.save_model('cnn_lstm_classifier.pth')
-    
-    # ===== BƯỚC 2C: TRAIN 3D CNN =====
-    print("\n" + "=" * 60)
-    print("BƯỚC 2C: TRAIN 3D CNN")
-    print("=" * 60)
-    
-    cnn3d_classifier = CNN3DClassifier(dropout=0.5)
-    cnn3d_results = cnn3d_classifier.train(
-        train_sequences,
-        test_size=0.25,
-        batch_size=32,
-        epochs=50,
-        lr=0.001
-    )
-    cnn3d_classifier.save_model('3dcnn_classifier.pth')
-    
-    # ===== BƯỚC 3: TẠO ENSEMBLE =====
-    print("\n" + "=" * 60)
-    print("BƯỚC 3: TẠO VÀ ĐÁNH GIÁ ENSEMBLE")
-    print("=" * 60)
-    
-    # Load lại các models
-    rf = ActionClassifier()
-    rf.load_model('rf_classifier.pkl')
-    
-    cnn_lstm = CNNLSTMClassifier()
-    cnn_lstm.load_model('cnn_lstm_classifier.pth')
-    
-    cnn3d = CNN3DClassifier()
-    cnn3d.load_model('3dcnn_classifier.pth')
-    
-    # Tạo ensemble với weighted strategy
-    # Weights dựa trên performance của từng model
-    ensemble_weights = {
-        'rf': rf_results['test_accuracy'],
-        'cnn_lstm': cnn_lstm_results['best_test_accuracy'] / 100,
-        'cnn3d': cnn3d_results['best_test_accuracy'] / 100
-    }
-    
-    ensemble = EnsembleClassifier(
-        models={
-            'rf': rf,
-            'cnn_lstm': cnn_lstm,
-            'cnn3d': cnn3d
-        },
-        weights=ensemble_weights,
-        strategy='weighted'
-    )
-    
-    # Đánh giá ensemble trên test set
-    ensemble_results = ensemble.evaluate(test_sequences)
-    
-    # ===== SO SÁNH TẤT CẢ MODELS =====
-    print("\n" + "=" * 60)
-    print("SO SÁNH HIỆU NĂNG TẤT CẢ MODELS")
-    print("=" * 60)
-    
-    print(f"\n{'Model':<20} {'Test Accuracy':<15} {'Parameters':<20}")
-    print("-" * 55)
-    print(f"{'Random Forest':<20} {rf_results['test_accuracy']:.2%} {'~200 trees':<20}")
-    print(f"{'CNN-LSTM':<20} {cnn_lstm_results['best_test_accuracy']:.2f}% {'~1M params':<20}")
-    print(f"{'3D CNN':<20} {cnn3d_results['best_test_accuracy']:.2f}% {'~500K params':<20}")
-    print(f"{'Ensemble (Weighted)':<20} {ensemble_results['accuracy']:.2%} {'All models':<20}")
-    
-    # Tìm best model
-    all_accs = {
-        'rf': rf_results['test_accuracy'] * 100,
-        'cnn_lstm': cnn_lstm_results['best_test_accuracy'],
-        'cnn3d': cnn3d_results['best_test_accuracy'],
-        'ensemble': ensemble_results['accuracy'] * 100
-    }
-    best_model = max(all_accs, key=all_accs.get)
-    
-    print(f"\n🏆 Best Model: {best_model.upper()} ({all_accs[best_model]:.2f}%)")
+    start_time = time.time()
+    if step == 1:
+        builder = DatasetBuilder(data_dir='data', flow_sequence_length=15)
+        sequences = builder.build_dataset(output_path='dataset.pkl')
+    if step >= 2:
+        sequences = load_data()
+        labels = [seq['label'] for seq in sequences]
+        train_sequences, test_sequences = train_test_split(
+            sequences, test_size=0.2, random_state=42, stratify=labels
+        )
+        if model_rf:
+            # ===== BƯỚC 2A: TRAIN RANDOM FOREST =====
+            print("\n" + "=" * 60)
+            print("BƯỚC 2A: TRAIN RANDOM FOREST")
+            print("=" * 60)
+
+            rf_classifier = ActionClassifier()
+            rf_results = rf_classifier.train(train_sequences, test_size=0.25)  # 0.25 của train = 0.2 tổng
+            elapsed = time.time() - start_time
+            print(f"\Training time RF: {elapsed/60:.1f} minutes")
+            print(f"Average time per epoch: {elapsed/epochs:.1f} seconds")
+            rf_classifier.save_model('rf_classifier.pkl')
+        if model_cnn_lstm:
+            # ===== BƯỚC 2B: TRAIN CNN-LSTM =====
+            print("\n" + "=" * 60)
+            print("BƯỚC 2B: TRAIN CNN-LSTM")
+            print("=" * 60)
+
+            cnn_lstm_classifier = CNNLSTMClassifier(
+                input_size=25,
+                hidden_size=128,
+                num_layers=2,
+                dropout=0.5,
+                device=device
+            )
+            cnn_lstm_results = cnn_lstm_classifier.train(
+                train_sequences,
+                test_size=0.25,
+                batch_size=32,
+                epochs=100,
+                lr=0.001
+            )
+            elapsed = time.time() - start_time
+            print(f"\Training time CNN-LSTM: {elapsed/60:.1f} minutes")
+            print(f"Average time per epoch: {elapsed/epochs:.1f} seconds")
+            cnn_lstm_classifier.save_model('cnn_lstm_classifier.pth')
+        if model_cnn3d:
+            # ===== BƯỚC 2C: TRAIN 3D CNN =====
+            print("\n" + "=" * 60)
+            print("BƯỚC 2C: TRAIN 3D CNN")
+            print("=" * 60)
+
+            cnn3d_classifier = CNN3DClassifier(dropout=0.5)
+            cnn3d_results = cnn3d_classifier.train(
+                train_sequences,
+                test_size=0.25,
+                batch_size=32,
+                epochs=100,
+                lr=0.001
+            )
+            elapsed = time.time() - start_time
+            print(f"\Training time 3D CNN: {elapsed/60:.1f} minutes")
+            print(f"Average time per epoch: {elapsed/epochs:.1f} seconds")
+            cnn3d_classifier.save_model('3dcnn_classifier.pth')
+        if model_ensemble:
+            # ===== BƯỚC 3: TẠO ENSEMBLE =====
+            print("\n" + "=" * 60)
+            print("BƯỚC 3: TẠO VÀ ĐÁNH GIÁ ENSEMBLE")
+            print("=" * 60)
+            
+            # Load lại các models
+            rf = ActionClassifier()
+            rf.load_model('rf_classifier.pkl')
+            
+            cnn_lstm = CNNLSTMClassifier()
+            cnn_lstm.load_model('cnn_lstm_classifier.pth')
+            
+            cnn3d = CNN3DClassifier()
+            cnn3d.load_model('3dcnn_classifier.pth')
+            
+            # Tạo ensemble với weighted strategy
+            # Weights dựa trên performance của từng model
+            ensemble_weights = {
+                'rf': rf_results['test_accuracy'],
+                'cnn_lstm': cnn_lstm_results['best_test_accuracy'] / 100,
+                'cnn3d': cnn3d_results['best_test_accuracy'] / 100
+            }
+            
+            ensemble = EnsembleClassifier(
+                models={
+                    'rf': rf,
+                    'cnn_lstm': cnn_lstm,
+                    'cnn3d': cnn3d
+                },
+                weights=ensemble_weights,
+                strategy='weighted'
+            )
+            
+            # Đánh giá ensemble trên test set
+            ensemble_results = ensemble.evaluate(test_sequences)
+        if all_model:
+            # ===== SO SÁNH TẤT CẢ MODELS =====
+            print("\n" + "=" * 60)
+            print("SO SÁNH HIỆU NĂNG TẤT CẢ MODELS")
+            print("=" * 60)
+            
+            print(f"\n{'Model':<20} {'Test Accuracy':<15} {'Parameters':<20}")
+            print("-" * 55)
+            print(f"{'Random Forest':<20} {rf_results['test_accuracy']:.2%} {'~200 trees':<20}")
+            print(f"{'CNN-LSTM':<20} {cnn_lstm_results['best_test_accuracy']:.2f}% {'~1M params':<20}")
+            print(f"{'3D CNN':<20} {cnn3d_results['best_test_accuracy']:.2f}% {'~500K params':<20}")
+            print(f"{'Ensemble (Weighted)':<20} {ensemble_results['accuracy']:.2%} {'All models':<20}")
+            
+            # Tìm best model
+            all_accs = {
+                'rf': rf_results['test_accuracy'] * 100,
+                'cnn_lstm': cnn_lstm_results['best_test_accuracy'],
+                'cnn3d': cnn3d_results['best_test_accuracy'],
+                'ensemble': ensemble_results['accuracy'] * 100
+            }
+            best_model = max(all_accs, key=all_accs.get)
+            
+            print(f"\n🏆 Best Model: {best_model.upper()} ({all_accs[best_model]:.2f}%)")
     
     # ===== BƯỚC 4: TEST TRÊN VIDEO MỚI =====
     print("\n" + "=" * 60)
@@ -1891,59 +1821,62 @@ if __name__ == "__main__":
     print("=" * 60)
     
     test_video = 'data_valid/3.mp4'
-    
-    # Test với từng model
-    print("\n--- Test với Random Forest ---")
-    rf_video = VideoClassifier(model_path='rf_classifier.pkl', model_type='rf')
-    rf_video.classify_video(test_video, 'output_rf.mp4')
-    
-    print("\n--- Test với CNN-LSTM ---")
-    cnn_lstm_video = VideoClassifier(
-        model_path='cnn_lstm_classifier.pth', 
-        model_type='cnn_lstm'
-    )
-    cnn_lstm_video.classify_video(test_video, 'output_cnn_lstm.mp4')
-    
-    print("\n--- Test với 3D CNN ---")
-    cnn3d_video = VideoClassifier(
-        model_path='3dcnn_classifier.pth',
-        model_type='3dcnn'
-    )
-    cnn3d_video.classify_video(test_video, 'output_3dcnn.mp4')
-    
-    print("\n--- Test với Ensemble ---")
-    ensemble_video = VideoClassifier(
-        model_type='ensemble',
-        ensemble_models=ensemble
-    )
-    ensemble_video.classify_video(test_video, 'output_ensemble.mp4')
-    
-    # ===== SUMMARY =====
-    print("\n" + "=" * 60)
-    print("HOÀN THÀNH! 🎉")
-    print("=" * 60)
-    
-    print("\n📁 Các file đã tạo:")
-    print("  Dataset:")
-    print("    - dataset.pkl")
-    print("  Models:")
-    print("    - rf_classifier.pkl")
-    print("    - cnn_lstm_classifier.pth")
-    print("    - 3dcnn_classifier.pth")
-    print("  Videos:")
-    print("    - output_rf.mp4")
-    print("    - output_cnn_lstm.mp4")
-    print("    - output_3dcnn.mp4")
-    print("    - output_ensemble.mp4")
-    
-    print("\n📊 Performance Summary:")
-    for name, acc in sorted(all_accs.items(), key=lambda x: x[1], reverse=True):
-        print(f"  {name:<15}: {acc:>6.2f}%")
-    
-    print("\n💡 Khuyến nghị:")
-    if best_model == 'ensemble':
-        print("  ✓ Ensemble cho kết quả tốt nhất, nhưng chậm hơn")
-        print("  ✓ Dùng ensemble cho production nếu cần accuracy cao nhất")
-    else:
-        print(f"  ✓ {best_model.upper()} đã đạt performance tốt nhất")
-        print(f"  ✓ Có thể dùng {best_model} thay vì ensemble để tăng tốc độ")
+    if test and model_rf:
+        # Test với từng model
+        print("\n--- Test với Random Forest ---")
+        rf_video = VideoClassifier(model_path='rf_classifier.pkl', model_type='rf')
+        rf_video.classify_video(test_video, 'output_rf.mp4')
+    if test and model_cnn_lstm:
+        print("\n--- Test với CNN-LSTM ---")
+        cnn_lstm_video = VideoClassifier(
+            model_path='cnn_lstm_classifier.pth', 
+            model_type='cnn_lstm'
+        )
+        cnn_lstm_video.classify_video(test_video, 'output_cnn_lstm.mp4')
+
+    if test and model_cnn3d:
+        print("\n--- Test với 3D CNN ---")
+        cnn3d_video = VideoClassifier(
+            model_path='3dcnn_classifier.pth',
+            model_type='3dcnn'
+        )
+        cnn3d_video.classify_video(test_video, 'output_3dcnn.mp4')
+
+    if test and model_ensemble:
+        print("\n--- Test với Ensemble ---")
+        ensemble_video = VideoClassifier(
+            model_type='ensemble',
+            ensemble_models=ensemble
+        )
+        ensemble_video.classify_video(test_video, 'output_ensemble.mp4')
+    if test and all_model:
+        # ===== SUMMARY =====
+        print("\n" + "=" * 60)
+        print("HOÀN THÀNH! 🎉")
+        print("=" * 60)
+        
+        print("\n📁 Các file đã tạo:")
+        print("  Dataset:")
+        print("    - dataset.pkl")
+        print("  Models:")
+        print("    - rf_classifier.pkl")
+        print("    - cnn_lstm_classifier.pth")
+        print("    - 3dcnn_classifier.pth")
+        print("  Videos:")
+        print("    - output_rf.mp4")
+        print("    - output_cnn_lstm.mp4")
+        print("    - output_3dcnn.mp4")
+        print("    - output_ensemble.mp4")
+        
+        print("\n📊 Performance Summary:")
+        for name, acc in sorted(all_accs.items(), key=lambda x: x[1], reverse=True):
+            print(f"  {name:<15}: {acc:>6.2f}%")
+        
+        print("\n💡 Khuyến nghị:")
+        if best_model == 'ensemble':
+            print("  ✓ Ensemble cho kết quả tốt nhất, nhưng chậm hơn")
+            print("  ✓ Dùng ensemble cho production nếu cần accuracy cao nhất")
+        else:
+            print(f"  ✓ {best_model.upper()} đã đạt performance tốt nhất")
+            print(f"  ✓ Có thể dùng {best_model} thay vì ensemble để tăng tốc độ")
+    print("\n🎉 Kết thúc quá trình!")
